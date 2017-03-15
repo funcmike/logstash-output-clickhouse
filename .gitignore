@@ -1,0 +1,6 @@
+*.gem
+Gemfile.lock
+.bundle
+vendor
+.idea
+*~
