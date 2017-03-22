@@ -16,7 +16,7 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
 
   config :http_hosts, :validate => :array, :required => true
 
-  config :http_query, :validate => :string, :required => true
+  config :table, :validate => :string, :required => true
   
   # Custom headers to use
   # format is `headers => ["X-My-Header", "%{host}"]`
@@ -47,6 +47,8 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
     @request_tokens = SizedQueue.new(@pool_max)
     @pool_max.times {|t| @request_tokens << true }
     @requests = Array.new
+    @http_query = "/?query=INSERT%20INTO%20#{table}%20FORMAT%20JSONEachRow"
+
 
     buffer_initialize(
       :max_items => @flush_size,
@@ -87,7 +89,7 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
 
   def save_to_disk(file_name, documents)
     begin
-      file = File.open("#{save_dir}/#{file_name}.json", "w")
+      file = File.open("#{save_dir}/#{table}_#{file_name}.json", "w")
       file.write(documents) 
     rescue IOError => e
       log_failure("An error occurred while saving file to disk: #{e}",
