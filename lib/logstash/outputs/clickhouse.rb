@@ -78,7 +78,10 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
         documents << LogStash::Json.dump(event.to_hash()) << "\n"
     end
 
-    make_request(documents, @http_hosts, @http_query)
+    hosts = []
+    http_hosts.each{|host| hosts << host.dup}
+
+    make_request(documents, hosts, @http_query)
   end
 
   def multi_receive(events)
