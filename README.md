@@ -15,7 +15,7 @@ Please note that the name of the plugin when used is `clickhouse`, it only suppo
         table => "table_name"
         mutations => {
           from => to,
-          from => [ to, regexp ]
+          from => [ to, /(.)(.)/, 2, 1 ]
         }
       }
     }

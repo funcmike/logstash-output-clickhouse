@@ -84,7 +84,8 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
       when Array then
         arr = mutation
         mutation = arr.shift
-        m = re.match(h[mutation])[1]
+        re = arr.shift
+        m = re.match(h[mutation])
         next unless m
         r[key] = ''
         arr.each { |i| r[key] += m[i] if i > 0 }
