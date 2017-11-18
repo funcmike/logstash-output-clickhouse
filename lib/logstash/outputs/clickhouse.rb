@@ -36,6 +36,8 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
   
   config :backoff_time, :validate => :number, :default => 3
 
+  config :mutations, :validate => :hash, :default => {}
+
   def register
     # Handle this deprecated option. TODO: remove the option
     #@ssl_certificate_validation = @verify_ssl if @verify_ssl
@@ -71,11 +73,29 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
   end #def event
 
   public
+  def mutate(event)
+    h = event.to_hash()
+    r = {}
+    @mutations.each_pair do |key, mutation|
+      next unless h.key?(mutation)
+      case mutation
+      when String then
+        r[key] = h[mutation]
+      when Array then
+        mutation, re = mutation
+        r[key] = re.match(h[mutation])[1]
+      end
+
+      end
+    end
+    r
+  end
+
   def flush(events, close=false)
     documents = ""  #this is the string of hashes that we push to Fusion as documents
 
     events.each do |event|
-        documents << LogStash::Json.dump(event.to_hash()) << "\n"
+        documents << LogStash::Json.dump(mutate(event)) << "\n"
     end
 
     hosts = []
