@@ -13,6 +13,10 @@ Please note that the name of the plugin when used is `clickhouse`, it only suppo
         headers => ["Authorization", "Basic YWRtaW46cGFzc3dvcmQxMjM="]
         http_hosts => ["http://your.clickhouse1/", "http://your.clickhouse2/", "http://your.clickhouse3/"]
         table => "table_name"
+        mutations => {
+          from => to,
+          from => [ to, regexp ]
+        }
       }
     }
 
