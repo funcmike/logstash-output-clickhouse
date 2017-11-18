@@ -14,8 +14,8 @@ Please note that the name of the plugin when used is `clickhouse`, it only suppo
         http_hosts => ["http://your.clickhouse1/", "http://your.clickhouse2/", "http://your.clickhouse3/"]
         table => "table_name"
         mutations => {
-          from => to,
-          from => [ to, /(.)(.)/, 2, 1 ]
+          from => "to",
+          from => [ "to", /(.)(.)/, 2, 1 ]
         }
       }
     }
