@@ -73,34 +73,31 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
   end #def event
 
   public
-  def mutate(event)
-    h = event.to_hash()
-    r = {}
-    @mutations.each_pair do |key, mutation|
-      next unless h.key?(mutation)
-      case mutation
-      when String then
-        r[key] = h[mutation]
-      when Array then
-        arr = mutation
-        mutation = arr.shift
-        re = arr.shift
-        m = re.match(h[mutation])
-        next unless m
-        r[key] = ''
-        arr.each { |i| r[key] += m[i] if i > 0 }
-      end
+  def mutate( src )
+    res = {}
+    @mutations.each_pair do |dstkey, source|
+      case source
+        when String then
+          scrkey = source
+          next unless src.key?(scrkey)
 
+          res[dstkey] = src[scrkey]
+        when Array then
+          scrkey = source[0]
+          next unless src.key?(scrkey)
+          pattern = source[1]
+          replace = source[2]
+          res[dstkey] = src[scrkey].sub( pattern, replace )
       end
     end
-    r
+    res
   end
 
   def flush(events, close=false)
     documents = ""  #this is the string of hashes that we push to Fusion as documents
 
     events.each do |event|
-        documents << LogStash::Json.dump(mutate(event)) << "\n"
+        documents << LogStash::Json.dump( mutate( event.to_hash() ) ) << "\n"
     end
 
     hosts = []
