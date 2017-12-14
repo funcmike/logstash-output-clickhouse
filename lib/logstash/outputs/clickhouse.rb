@@ -87,7 +87,7 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
           next unless src.key?(scrkey)
           pattern = source[1]
           replace = source[2]
-          res[dstkey] = src[scrkey].sub( pattern, replace )
+          res[dstkey] = src[scrkey].sub( Regexp.new(pattern), replace )
       end
     end
     res
