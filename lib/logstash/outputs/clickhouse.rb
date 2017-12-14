@@ -87,7 +87,7 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
           next unless src.key?(scrkey)
           pattern = source[1]
           replace = source[2]
-          res[dstkey] = src[scrkey].sub( pattern, replace )
+          res[dstkey] = src[scrkey].sub( Regexp.new(pattern), replace )
       end
     end
     res
@@ -204,9 +204,7 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
       make_request(documents, hosts, query, con_count+1, req_count, host, uuid)
     end
 
-    Thread.new do 
-      client.execute!
-    end
+    client.execute!
   end
 
   # This is split into a separate method mostly to help testing
