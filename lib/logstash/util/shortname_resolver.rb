@@ -32,4 +32,9 @@ class ShortNameResolver
   def get_address(shortname)
     return resolve_cached(shortname).sample
   end
+
+  public
+  def get_addresses(shortname)
+    return resolve_cached(shortname)
+  end
 end
