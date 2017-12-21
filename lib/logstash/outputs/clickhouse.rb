@@ -2,6 +2,7 @@
 require "logstash/outputs/base"
 require "logstash/namespace"
 require "logstash/json"
+require "logstash/util/shortname_resolver"
 require "uri"
 require "stud/buffer"
 require "logstash/plugin_mixins/http_client"
@@ -36,7 +37,11 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
   
   config :backoff_time, :validate => :number, :default => 3
 
+  config :automatic_retries, :validate => :number, :default => 3
+
   config :mutations, :validate => :hash, :default => {}
+
+  config :host_resolve_ttl_sec, :validate => :number, :default => 120
 
   def register
     # Handle this deprecated option. TODO: remove the option
@@ -51,6 +56,9 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
     @requests = Array.new
     @http_query = "/?query=INSERT%20INTO%20#{table}%20FORMAT%20JSONEachRow"
 
+    @hostnames_pool =
+      parse_http_hosts(http_hosts,
+        ShortNameResolver.new(ttl: @host_resolve_ttl_sec, logger: @logger))
 
     buffer_initialize(
       :max_items => @flush_size,
@@ -66,6 +74,37 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
       :headers => request_headers)
 
   end # def register
+
+  private
+  def parse_http_hosts(hosts, resolver)
+    ip_re = /^[\d]+\.[\d]+\.[\d]+\.[\d]+$/
+
+    lambda {
+      hosts.flat_map { |h|
+        scheme = URI(h).scheme
+        host = URI(h).host
+        port = URI(h).port
+        path = URI(h).path
+
+        if ip_re !~ host
+          resolver.get_addresses(host).map { |ip|
+            "#{scheme}://#{ip}:#{port}#{path}"
+          }
+        else
+          [h]
+        end
+      }
+    }
+  end
+
+  private
+  def get_host_addresses()
+    begin
+      @hostnames_pool.call
+    rescue Exception => ex
+      logger.error('Error while resolving host', :error => ex.to_s)
+    end
+  end
 
   # This module currently does not support parallel requests as that would circumvent the batching
   def receive(event, async_type=:background)
@@ -100,10 +139,9 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
         documents << LogStash::Json.dump( mutate( event.to_hash() ) ) << "\n"
     end
 
-    hosts = []
-    http_hosts.each{|host| hosts << host.dup}
+    hosts = get_host_addresses()
 
-    make_request(documents, hosts, @http_query)
+    make_request(documents, hosts, @http_query, 1, 1, hosts.sample)
   end
 
   def multi_receive(events)
@@ -172,7 +210,7 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
         else
           logger.info("Retrying request", :url => url)
           sleep req_count*@backoff_time
-          make_request(documents, hosts, query, con_count, req_count+1, host, uuid)
+          make_request(documents, hosts, query, con_count, req_count+1, hosts.sample, uuid)
         end
       end
     end
