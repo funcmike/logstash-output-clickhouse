@@ -180,7 +180,7 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
             save_to_disk(documents)
           end
         else
-          logger.info("Retrying request", :url => url)
+          @logger.info("Retrying request", :url => url)
           sleep req_count*@backoff_time
           make_request(documents, hosts, query, con_count, req_count+1, host, uuid)
         end
@@ -209,7 +209,7 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
         con_count = 0
       end
       
-      logger.info("Retrying connection", :url => url)
+      @logger.info("Retrying connection", :url => url)
       sleep @backoff_time
       make_request(documents, hosts, query, con_count+1, req_count, host, uuid)
     end
