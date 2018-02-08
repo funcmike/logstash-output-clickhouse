@@ -9,13 +9,13 @@ It has been modified to support ClickHouse JSON Format, but also supports fault 
 Please note that the name of the plugin when used is `clickhouse`, it only supports json in its current form. If further output formats are added in the future, this might change back to json_batch.
 
     output {
-      json_batch {
+      clickhouse {
         headers => ["Authorization", "Basic YWRtaW46cGFzc3dvcmQxMjM="]
         http_hosts => ["http://your.clickhouse1/", "http://your.clickhouse2/", "http://your.clickhouse3/"]
         table => "table_name"
         mutations => {
           "to1" => "from1",
-          "to2" => [ "from2", /(.)(.)/, '\1\2' ]
+          "to2" => [ "from2", "(.)(.)", '\1\2' ]
         }
       }
     }
