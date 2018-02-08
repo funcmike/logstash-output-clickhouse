@@ -146,13 +146,10 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
       @logger.warn("An error occurred while indexing: #{e.message}")
     end
 
-    # attach handlers before performing request
-    request.on_complete do
+    request.on_success do |response|
       # Make sure we return the token to the pool
       @request_tokens << token
-    end
 
-    request.on_success do |response|
       if response.code == 200
         @logger.debug("Successfully submitted", 
           :size => documents.length,
@@ -178,6 +175,9 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
     end
 
     request.on_failure do |exception|
+      # Make sure we return the token to the pool
+      @request_tokens << token
+
       if hosts.length == 0
           log_failure("Could not access URL",
             :url => url,
