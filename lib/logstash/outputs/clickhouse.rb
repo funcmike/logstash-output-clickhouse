@@ -12,6 +12,8 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
   include LogStash::PluginMixins::HttpClient
   include Stud::Buffer
 
+  concurrency :single
+
   config_name "clickhouse"
 
   config :http_hosts, :validate => :array, :required => true
@@ -32,11 +34,30 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
 
   config :save_dir, :validate => :string, :default => "/tmp"
 
+  config :save_file, :validate => :string, :default => "failed.json"
+
   config :request_tolerance, :validate => :number, :default => 5
   
   config :backoff_time, :validate => :number, :default => 3
 
+  config :automatic_retries, :validate => :number, :default => 3
+
   config :mutations, :validate => :hash, :default => {}
+
+  def print_plugin_info()
+    @@plugins = Gem::Specification.find_all{|spec| spec.name =~ /logstash-output-clickhouse/ }
+    @plugin_name = @@plugins[0].name
+    @plugin_version = @@plugins[0].version
+    @logger.info("Running #{@plugin_name} version #{@plugin_version}")
+
+    @logger.info("Initialized clickhouse with settings",
+      :flush_size => @flush_size,
+      :idle_flush_time => @idle_flush_time,
+      :request_tokens => @pool_max,
+      :http_hosts => @http_hosts,
+      :http_query => @http_query,
+      :headers => request_headers)
+  end
 
   def register
     # Handle this deprecated option. TODO: remove the option
@@ -57,22 +78,15 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
       :max_interval => @idle_flush_time,
       :logger => @logger
     )
-    logger.info("Initialized clickhouse with settings", 
-      :flush_size => @flush_size,
-      :idle_flush_time => @idle_flush_time,
-      :request_tokens => @pool_max,
-      :http_hosts => @http_hosts,
-      :http_query => @http_query,
-      :headers => request_headers)
 
+    print_plugin_info()
   end # def register
 
   # This module currently does not support parallel requests as that would circumvent the batching
-  def receive(event, async_type=:background)
+  def receive(event)
     buffer_receive(event)
-  end #def event
+  end
 
-  public
   def mutate( src )
     res = {}
     @mutations.each_pair do |dstkey, source|
@@ -106,15 +120,11 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
     make_request(documents, hosts, @http_query)
   end
 
-  def multi_receive(events)
-    events.each {|event| buffer_receive(event)}
-  end
-
   private
 
-  def save_to_disk(file_name, documents)
+  def save_to_disk(documents)
     begin
-      file = File.open("#{save_dir}/#{table}_#{file_name}.json", "w")
+      file = File.open("#{save_dir}/#{table}_#{save_file}", "a")
       file.write(documents) 
     rescue IOError => e
       log_failure("An error occurred while saving file to disk: #{e}",
@@ -167,7 +177,7 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
               :size => documents.length,
               :uuid => uuid)
           if @save_on_failure
-            save_to_disk(uuid, documents)
+            save_to_disk(documents)
           end
         else
           logger.info("Retrying request", :url => url)
@@ -189,7 +199,7 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
             :size => documents.length,
             :uuid => uuid)
           if @save_on_failure
-            save_to_disk(uuid, documents)
+            save_to_disk(documents)
           end
           return
       end
