@@ -173,6 +173,15 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
     end
   end
 
+  def delay_attempt(attempt_number, delay)
+    # sleep delay grows roughly as k*x*ln(x) where k is the initial delay set in @backoff_time param
+    attempt = [attempt_number, 1].max
+    timeout = lambda { |x| [delay*x*Math.log(x), 1].max }
+    # using rand() to pick final sleep delay to reduce the risk of getting in sync with other clients writing to the DB
+    sleep_time = rand(timeout.call(attempt)..timeout.call(attempt+1))
+    sleep sleep_time
+  end
+
   private
 
   def make_request(documents, hosts, query, con_count = 1, req_count = 1, host = "", uuid = SecureRandom.hex)
@@ -216,9 +225,9 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
             save_to_disk(documents)
           end
         else
-          @logger.info("Retrying request", :url => url)
-          sleep req_count*@backoff_time
-          make_request(documents, hosts, query, con_count, req_count+1, hosts.sample, uuid)
+          @logger.info("Retrying request", :url => url, :message => response.message, :response => response.body, :uuid => uuid)
+          delay_attempt(req_count, @backoff_time)
+          make_request(documents, hosts, query, con_count, req_count+1, host, uuid)
         end
       end
     end
@@ -247,9 +256,9 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
         host = ""
         con_count = 0
       end
-      
-      @logger.info("Retrying connection", :url => url)
-      sleep @backoff_time
+
+      @logger.info("Retrying connection", :url => url, :uuid => uuid)
+      delay_attempt(con_count, @backoff_time)
       make_request(documents, hosts, query, con_count+1, req_count, host, uuid)
     end
 
