@@ -2,6 +2,7 @@
 require "logstash/outputs/base"
 require "logstash/namespace"
 require "logstash/json"
+require "logstash/util/shortname_resolver"
 require "uri"
 require "stud/buffer"
 require "logstash/plugin_mixins/http_client"
@@ -44,6 +45,8 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
 
   config :mutations, :validate => :hash, :default => {}
 
+  config :host_resolve_ttl_sec, :validate => :number, :default => 120
+
   def print_plugin_info()
     @@plugins = Gem::Specification.find_all{|spec| spec.name =~ /logstash-output-clickhouse/ }
     @plugin_name = @@plugins[0].name
@@ -72,6 +75,9 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
     @requests = Array.new
     @http_query = "/?query=INSERT%20INTO%20#{table}%20FORMAT%20JSONEachRow"
 
+    @hostnames_pool =
+      parse_http_hosts(http_hosts,
+        ShortNameResolver.new(ttl: @host_resolve_ttl_sec, logger: @logger))
 
     buffer_initialize(
       :max_items => @flush_size,
@@ -81,6 +87,39 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
 
     print_plugin_info()
   end # def register
+
+  private
+
+  def parse_http_hosts(hosts, resolver)
+    ip_re = /^[\d]+\.[\d]+\.[\d]+\.[\d]+$/
+
+    lambda {
+      hosts.flat_map { |h|
+        scheme = URI(h).scheme
+        host = URI(h).host
+        port = URI(h).port
+        path = URI(h).path
+
+        if ip_re !~ host
+          resolver.get_addresses(host).map { |ip|
+            "#{scheme}://#{ip}:#{port}#{path}"
+          }
+        else
+          [h]
+        end
+      }
+    }
+  end
+
+  private
+
+  def get_host_addresses()
+    begin
+      @hostnames_pool.call
+    rescue Exception => ex
+      @logger.error('Error while resolving host', :error => ex.to_s)
+    end
+  end
 
   # This module currently does not support parallel requests as that would circumvent the batching
   def receive(event)
@@ -107,6 +146,7 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
     res
   end
 
+  public
   def flush(events, close=false)
     documents = ""  #this is the string of hashes that we push to Fusion as documents
 
@@ -114,10 +154,9 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
         documents << LogStash::Json.dump( mutate( event.to_hash() ) ) << "\n"
     end
 
-    hosts = []
-    http_hosts.each{|host| hosts << host.dup}
+    hosts = get_host_addresses()
 
-    make_request(documents, hosts, @http_query)
+    make_request(documents, hosts, @http_query, 1, 1, hosts.sample)
   end
 
   private
