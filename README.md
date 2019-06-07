@@ -40,3 +40,4 @@ To build the gem yourself, use `gem build logstash-output-clickhouse.gemspec` in
 
 To install, run the following command, assuming the gem is in the local directory: `$LOGSTASH_HOME/bin/plugin install logstash-output-clickhouse-X.Y.Z.gem`
 
+P.S. Tested on Logstash 7.1.1
