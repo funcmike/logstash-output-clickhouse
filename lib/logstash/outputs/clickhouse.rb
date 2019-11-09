@@ -21,6 +21,8 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
 
   config :table, :validate => :string, :required => true
   
+  config :skip_unknown, :validate => :number, :default => 1, :inclusion => 0..1
+  
   # Custom headers to use
   # format is `headers => ["X-My-Header", "%{host}"]`
   config :headers, :validate => :hash
@@ -73,7 +75,7 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
     @request_tokens = SizedQueue.new(@pool_max)
     @pool_max.times {|t| @request_tokens << true }
     @requests = Array.new
-    @http_query = "/?query=INSERT%20INTO%20#{table}%20FORMAT%20JSONEachRow"
+    @http_query = "/?input_format_skip_unknown_fields=#{skip_unknown}&query=INSERT%20INTO%20#{table}%20FORMAT%20JSONEachRow"
 
     @hostnames_pool =
       parse_http_hosts(http_hosts,
@@ -126,32 +128,12 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
     buffer_receive(event)
   end
 
-  def mutate( src )
-    res = {}
-    @mutations.each_pair do |dstkey, source|
-      case source
-        when String then
-          scrkey = source
-          next unless src.key?(scrkey)
-
-          res[dstkey] = src[scrkey]
-        when Array then
-          scrkey = source[0]
-          next unless src.key?(scrkey)
-          pattern = source[1]
-          replace = source[2]
-          res[dstkey] = src[scrkey].sub( Regexp.new(pattern), replace )
-      end
-    end
-    res
-  end
-
   public
   def flush(events, close=false)
     documents = ""  #this is the string of hashes that we push to Fusion as documents
 
     events.each do |event|
-        documents << LogStash::Json.dump( mutate( event.to_hash() ) ) << "\n"
+        documents << LogStash::Json.dump( event ) << "\n"
     end
 
     hosts = get_host_addresses()

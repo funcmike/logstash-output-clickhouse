@@ -26,6 +26,7 @@ Please note that the name of the plugin when used is `clickhouse`, it only suppo
 * `automatic_retries` (default: 1) - number of connect retry attempts to each host in `http_hosts`
 * `request_tolerance` (default: 5) - number of http request send retry attempts if response status code is not 200
 * `backoff_time` (default: 3) - time to wait in seconds for next retry attempt of connect or request
+* `skip_unknown` (0 or 1, default: 1) - skip unknown fields when inserting into clickhouse. Uses `--input_format_skip_unknown_fields` parameter
 
 Default batch size is 50, with a wait of at most 5 seconds per send. These can be tweaked with the parameters `flush_size` and `idle_flush_time` respectively.
 
@@ -39,3 +40,4 @@ To build the gem yourself, use `gem build logstash-output-clickhouse.gemspec` in
 
 To install, run the following command, assuming the gem is in the local directory: `$LOGSTASH_HOME/bin/plugin install logstash-output-clickhouse-X.Y.Z.gem`
 
+P.S. Tested on Logstash 7.1.1
