@@ -127,6 +127,7 @@ class LogStash::Outputs::ClickHouse < LogStash::Outputs::Base
   end
 
   def mutate( src )
+    return src if @mutations.empty?
     res = {}
     @mutations.each_pair do |dstkey, source|
       case source
