@@ -1,3 +1,5 @@
+# I switched to vector -> https://github.com/timberio/vector.
+
 # Logstash Plugin
 
 This plugin is a modified version of the Lucidworks logstash json_batch. That plugin is available [here](https://github.com/lucidworks/logstash-output-json_batch). 
